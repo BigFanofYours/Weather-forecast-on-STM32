@@ -227,6 +227,7 @@ void drawInterface(void)
 		}
 	}
 
+	//Coordinates for locating weather icons
 	lcdSetTextFont(&Font12);
 	drawClearDay(120, 16);
 
@@ -253,24 +254,6 @@ void drawInterface(void)
 	lcdSetCursor(155, 273);
 	lcdPrintfNoBackColor("12/11");
 	drawClock();
-//	//Drawing lines for splitting sections
-//	for (int i = -thickness / 2; i <= thickness / 2; i++)
-//	{
-//	    lcdDrawLine(midWidth + i, 0, midWidth + i, lcdProperties.height - 1, COLOR_BLACK);
-//	}
-//	for (int i = -thickness / 2; i <= thickness / 2; i++)
-//	{
-//	    lcdDrawLine(0, midHeight + i, lcdProperties.width - 1, midHeight + i, COLOR_BLACK);
-//	}
-//	while(1)
-//	{
-//		drawClearDay(158, 118, sectionWidthLeft);
-//		HAL_Delay(2000);
-//		drawCloudyDay(158, 118, sectionWidthLeft);
-//		HAL_Delay(2000);
-//		drawRainyDay(158, 118, sectionWidthLeft);
-//		HAL_Delay(2000);
-//	}
 }
 
 //Function for drawing aligned text

@@ -18,11 +18,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ili9341.h"
 #include <time.h>
 #include <stdlib.h>
+#include <cJSON.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,6 +36,11 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define min(a,b) (((a)<(b))?(a):(b))
+#define RX_BUFFER_SIZE 512
+uint8_t rxBuffer[RX_BUFFER_SIZE];
+uint8_t dataReceivedFlag = 0;
+const char* nhaTrangURL = "http://api.open-meteo.com/v1/forecast?latitude=12.2451&longitude=109.1943&current=temperature_2m&daily=weather_code&timezone=GMT\r\n";
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -41,6 +49,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart3;
+
 SRAM_HandleTypeDef hsram1;
 
 /* USER CODE BEGIN PV */
@@ -51,6 +61,7 @@ SRAM_HandleTypeDef hsram1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_FSMC_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -58,6 +69,36 @@ static void MX_FSMC_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void demoLCD(int i);
+
+void sendAPIURL()
+{
+    HAL_UART_Transmit(&huart3, (uint8_t*)nhaTrangURL, strlen(nhaTrangURL), HAL_MAX_DELAY);  // Send URL to ESP8266
+    lcdPrintfNoBackColor(nhaTrangURL);
+}
+
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART3)
+  {
+      dataReceivedFlag = 1;
+      HAL_UART_Receive_IT(&huart3, rxBuffer, RX_BUFFER_SIZE);
+  }
+}
+
+void parseJson(const char* jsonData)
+{
+    cJSON* root = cJSON_Parse(jsonData);
+    cJSON* temperature = cJSON_GetObjectItem(root, "current_weather");
+    if (cJSON_IsObject(temperature))
+    {
+        double temp = cJSON_GetObjectItem(temperature, "temperature")->valuedouble;
+        lcdPrintfNoBackColor("Current Temperature: %.2f\n", temp);
+    }
+
+    cJSON_Delete(root); // Free memory
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -90,20 +131,33 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_FSMC_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   LCD_BL_ON();
   lcdInit();
   int i = 0;
+  demoLCD(i);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  //while (1)
-  //{
+  while (1)
+  {
+	  sendAPIURL();
+	  HAL_Delay(20000);
+//	  if (jsonReceivedFlag)
+//	  {
+//	      jsonReceivedFlag = 0;
+//
+//	      // Print received JSON for debugging
+//	      lcdPrintfNoBackColor("Received JSON:\n%s\n", jsonBuffer);
+//
+//	      // Optional: Parse the JSON data
+//	      parseJson((char*)jsonBuffer);
     /* USER CODE END WHILE */
-  demoLCD(i);
+
     /* USER CODE BEGIN 3 */
-  //}
+  }
   /* USER CODE END 3 */
 }
 
@@ -153,6 +207,39 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 9600;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -168,6 +255,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_RESET);

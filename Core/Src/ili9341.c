@@ -253,7 +253,6 @@ void drawInterface(void)
 	drawClearDay(175, 301);
 	lcdSetCursor(155, 273);
 	lcdPrintfNoBackColor("12/11");
-	drawClock();
 }
 
 //Function for drawing aligned text
@@ -284,11 +283,6 @@ void drawClearDay(uint16_t xPosition, uint16_t yPosition)
 
 void drawCloudyDay(uint16_t xPosition, uint16_t yPosition)
 {
-	uint8_t sunRadius = 12;
-
-	// Draw the sun (filled yellow circle)
-	lcdFillCircle(xPosition, yPosition, sunRadius, COLOR_YELLOW);
-
 	// Coordinates and sizes for the cloud (3 circles overlapping)
 	uint16_t cloudCenterX1 = 42;
 	uint16_t cloudCenterY1 = 40;

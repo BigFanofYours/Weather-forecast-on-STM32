@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <cJSON.h>
 #include <string.h>
+#include "XPT2046_touch.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,11 +37,15 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define min(a,b) (((a)<(b))?(a):(b))
-#define RX_BUFFER_SIZE 512
-uint8_t rxBuffer[RX_BUFFER_SIZE];
-uint8_t dataReceivedFlag = 0;
-const char* nhaTrangURL = "http://api.open-meteo.com/v1/forecast?latitude=12.2451&longitude=109.1943&current=temperature_2m&daily=weather_code&timezone=GMT\r\n";
-
+#define BUFFER_SIZE 1024
+#define PORTRAIT 0
+#define NOBACKCOLOR 0
+#define NHATRANG 0
+#define SAIGON 1
+#define HANOI 2
+#define TAMPERE 3
+#define ARNHEM 4
+#define SYDNEY 5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,56 +54,65 @@ const char* nhaTrangURL = "http://api.open-meteo.com/v1/forecast?latitude=12.245
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart3;
+SPI_HandleTypeDef hspi2;
+
+UART_HandleTypeDef huart1;
 
 SRAM_HandleTypeDef hsram1;
 
 /* USER CODE BEGIN PV */
+//URLs to call API
+const char* nhaTrangURL = "http://api.open-meteo.com/v1/forecast?latitude=12.2451&longitude=109.1943&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+const char* saiGonURL = "http://api.open-meteo.com/v1/forecast?latitude=10.823&longitude=106.6296&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+const char* haNoiURL = "http://api.open-meteo.com/v1/forecast?latitude=20.9714&longitude=105.7788&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+const char* tampereURL = "http://api.open-meteo.com/v1/forecast?latitude=61.4991&longitude=23.7871&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+const char* arnhemURL = "http://api.open-meteo.com/v1/forecast?latitude=51.98&longitude=5.9111&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+const char* sydneyURL = "http://api.open-meteo.com/v1/forecast?latitude=-33.8678&longitude=151.2073&current=temperature_2m,relative_humidity_2m,is_day&daily=weather_code&timezone=auto\r\n";
+//Variables for handling received UART data
+uint8_t tempBuffer[1];
+uint8_t rxBuffer[BUFFER_SIZE];
+uint16_t rxIndex = 0;
+uint8_t rxComplete = 0;
 
+//Variables for switching between UIs
+uint16_t xCoordinates = 0, yCoordinates = 0;
+uint8_t menu = 1;
+
+//Variables for weather data handling
+int weather[7];
+int currentTemperature = 0;
+int currentHumidity = 0;
+uint16_t weatherIndex = 0;
+uint16_t dateIndex = 0;
+uint8_t processComplete = 0;
+uint8_t isDay = 0;
+char* date[7];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_FSMC_Init(void);
-static void MX_USART3_UART_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void demoLCD(int i);
-
-void sendAPIURL()
-{
-    HAL_UART_Transmit(&huart3, (uint8_t*)nhaTrangURL, strlen(nhaTrangURL), HAL_MAX_DELAY);  // Send URL to ESP8266
-    lcdPrintfNoBackColor(nhaTrangURL);
-}
-
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  if (huart->Instance == USART3)
-  {
-      dataReceivedFlag = 1;
-      HAL_UART_Receive_IT(&huart3, rxBuffer, RX_BUFFER_SIZE);
-  }
-}
-
-void parseJson(const char* jsonData)
-{
-    cJSON* root = cJSON_Parse(jsonData);
-    cJSON* temperature = cJSON_GetObjectItem(root, "current_weather");
-    if (cJSON_IsObject(temperature))
-    {
-        double temp = cJSON_GetObjectItem(temperature, "temperature")->valuedouble;
-        lcdPrintfNoBackColor("Current Temperature: %.2f\n", temp);
-    }
-
-    cJSON_Delete(root); // Free memory
-}
-
+void drawMenuIcon();
+void drawMenu();
+void drawBufferScreen();
+void checkCoordinates();
+void drawWeather(uint16_t xPosition, uint16_t yPosition, int weatherCode);
+void drawInterface();
+void reformatDate();
+void sendAPIURL(uint16_t chooseCity);
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+void processWeatherData(const char *jsonData);
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
+void resetBuffer();
 /* USER CODE END 0 */
 
 /**
@@ -131,29 +145,37 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_FSMC_Init();
-  MX_USART3_UART_Init();
+  MX_USART1_UART_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   LCD_BL_ON();
   lcdInit();
-  int i = 0;
-  demoLCD(i);
+  lcdSetOrientation(PORTRAIT);
+  lcdFillRGB(COLOR_BLACK);
+  HAL_UART_Receive_IT(&huart1, (uint8_t*)tempBuffer, 1);
+  drawMenu();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  sendAPIURL();
-	  HAL_Delay(20000);
-//	  if (jsonReceivedFlag)
-//	  {
-//	      jsonReceivedFlag = 0;
-//
-//	      // Print received JSON for debugging
-//	      lcdPrintfNoBackColor("Received JSON:\n%s\n", jsonBuffer);
-//
-//	      // Optional: Parse the JSON data
-//	      parseJson((char*)jsonBuffer);
+	  if(rxComplete)
+	  {
+		  rxComplete = 0;
+		  rxIndex = 0;
+		  processWeatherData((const char*) rxBuffer);
+		  if (processComplete)
+		  {
+			  processComplete = 0;
+			  weatherIndex = 0;
+			  dateIndex = 0;
+			  drawInterface();
+		  }
+		  resetBuffer();
+		  HAL_UART_Receive_IT(&huart1, (uint8_t*)tempBuffer, 1);
+	  }
+	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -207,35 +229,73 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
+  * @brief SPI2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USART3_UART_Init(void)
+static void MX_SPI2_Init(void)
 {
 
-  /* USER CODE BEGIN USART3_Init 0 */
+  /* USER CODE BEGIN SPI2_Init 0 */
 
-  /* USER CODE END USART3_Init 0 */
+  /* USER CODE END SPI2_Init 0 */
 
-  /* USER CODE BEGIN USART3_Init 1 */
+  /* USER CODE BEGIN SPI2_Init 1 */
 
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 9600;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART3_Init 2 */
+  /* USER CODE BEGIN SPI2_Init 2 */
 
-  /* USER CODE END USART3_Init 2 */
+  /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 9600;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 
@@ -252,13 +312,23 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(T_CS_GPIO_Port, T_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : T_IRQ_Pin */
+  GPIO_InitStruct.Pin = T_IRQ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(T_IRQ_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_BL_Pin */
   GPIO_InitStruct.Pin = LCD_BL_Pin;
@@ -266,6 +336,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LCD_BL_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : T_CS_Pin */
+  GPIO_InitStruct.Pin = T_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(T_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -325,10 +406,336 @@ static void MX_FSMC_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void demoLCD(int i)
+void drawMenuIcon()
 {
-	lcdSetOrientation(i);
-	drawInterface();
+	lcdFillRoundRect(0, 0, 35, 23, 8, COLOR_WHITE);
+	lcdFillRoundRect(3, 4, 29, 3, 2, COLOR_BLACK);
+	lcdFillRoundRect(3, 10, 29, 3, 2, COLOR_BLACK);
+	lcdFillRoundRect(3, 16, 29, 3, 2, COLOR_BLACK);
+}
+
+void drawMenu()
+{
+	lcdSetTextFont(&Font16);
+	lcdSetTextColor(COLOR_WHITE, COLOR_BLACK);
+	lcdFillRGB(COLOR_BLACK);
+	menu = 1;
+	drawAlignedText("Choose a location", 0, 240, 16, NOBACKCOLOR);
+
+	lcdSetTextColor(COLOR_BLACK, COLOR_BLACK);
+	lcdFillRoundRect(0, 32, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Sai Gon", 45, 240, 16, NOBACKCOLOR);
+
+	lcdFillRoundRect(0, 80, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Nha Trang", 93, 240, 16, NOBACKCOLOR);
+
+	lcdFillRoundRect(0, 128, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Ha Noi", 141, 240, 16, NOBACKCOLOR);
+
+	lcdFillRoundRect(0, 176, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Tampere", 189, 240, 16, NOBACKCOLOR);
+
+	lcdFillRoundRect(0, 224, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Arnhem", 237, 240, 16, NOBACKCOLOR);
+
+	lcdFillRoundRect(0, 272, 240, 40, 10, COLOR_WHITE);
+	drawAlignedText("Sydney", 285, 240, 16, NOBACKCOLOR);
+}
+
+void drawBufferScreen()
+{
+	menu = 0;
+	lcdFillRGB(COLOR_BLACK);
+	drawMenuIcon();
+	lcdSetTextColor(COLOR_WHITE, COLOR_BLACK);
+	drawAlignedText("Fetching weather data", 160, 240, 16, NOBACKCOLOR);
+}
+
+void checkCoordinates()
+{
+	if ((yCoordinates <= 30 && xCoordinates <= 30) && menu != 1)
+	{
+		drawMenu();
+	}
+	if ((yCoordinates >= 32 && yCoordinates <= 72) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(SAIGON);
+	}
+	if ((yCoordinates >= 80 && yCoordinates <= 120) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(NHATRANG);
+	}
+	if ((yCoordinates >= 128 && yCoordinates <= 168) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(HANOI);
+	}
+	if ((yCoordinates >= 176 && yCoordinates <= 216) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(TAMPERE);
+	}
+	if ((yCoordinates >= 224 && yCoordinates <= 264) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(ARNHEM);
+	}
+	if ((yCoordinates >= 272 && yCoordinates <= 312) && menu == 1)
+	{
+		drawBufferScreen();
+		sendAPIURL(SYDNEY);
+	}
+}
+
+void drawWeather(uint16_t xPosition, uint16_t yPosition, int weatherCode)
+{
+	if (weatherCode == 0)
+	{
+		drawClearDay(xPosition, yPosition);
+	}
+	else if (weatherCode >= 1 && weatherCode <= 3)
+	{
+		drawCloudyDay(xPosition, yPosition);
+	}
+	else if ((weatherCode >= 51 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82))
+	{
+		drawRainyDay(xPosition, yPosition);
+	}
+	else if ((weatherCode >= 71 && weatherCode <= 77) || (weatherCode == 85 || weatherCode == 86))
+	{
+		drawSnowyDay(xPosition, yPosition);
+	}
+	else if (weatherCode >= 95 && weatherCode <= 99)
+	{
+		drawStormyDay(xPosition, yPosition);
+	}
+	else if (weatherCode == 45 || weatherCode == 48)
+	{
+		drawFoggyDay(xPosition, yPosition);
+	}
+}
+
+void drawInterface()
+{
+	menu = 0;
+	uint16_t color;
+	if (isDay == 0)
+	{
+		lcdDrawImage(0, 0, &imageNight);
+		color = COLOR_NAVY;
+		lcdSetTextColor(COLOR_WHITE, COLOR_BLACK);
+	}
+	else
+	{
+		lcdDrawImage(0, 0, &imageDay);
+		color = COLOR_CYAN;
+		lcdSetTextColor(COLOR_BLACK, COLOR_BLACK);
+	}
+	drawMenuIcon();
+
+	for (int y = 160; y < 320; y++)
+	{
+		for (int x = 0; x < 240; x++)
+		{
+		    lcdDrawPixel(x, y, color);
+		}
+	}
+
+	lcdSetTextFont(&Font12);
+
+	reformatDate();
+
+	drawWeather(40, 190, weather[0]);
+	lcdSetCursor(25, 160);
+	lcdPrintfNoBackColor(date[0]);
+
+	drawWeather(90, 190, weather[1]);
+	lcdSetCursor(75, 160);
+	lcdPrintfNoBackColor(date[1]);
+
+	drawWeather(150, 190, weather[2]);
+	lcdSetCursor(135, 160);
+	lcdPrintfNoBackColor(date[2]);
+
+	drawWeather(200, 190, weather[3]);
+	lcdSetCursor(185, 160);
+	lcdPrintfNoBackColor(date[3]);
+
+	drawWeather(65, 270, weather[4]);
+	lcdSetCursor(50, 240);
+	lcdPrintfNoBackColor(date[4]);
+
+	drawWeather(120, 270, weather[5]);
+	lcdSetCursor(105, 240);
+	lcdPrintfNoBackColor(date[5]);
+
+	drawWeather(175, 270, weather[6]);
+	lcdSetCursor(160, 240);
+	lcdPrintfNoBackColor(date[6]);
+
+	lcdSetCursor(80, 110);
+	lcdPrintfNoBackColor("Humidity: %d%%", currentHumidity);
+	lcdSetTextFont(&Font20);
+	lcdSetCursor(110, 90);
+	lcdPrintfNoBackColor("%d", currentTemperature);
+
+}
+
+void reformatDate()
+{
+	char temp[6];
+	for (int i = 0; i < 7; i++)
+	{
+	    if (date[i])
+	    {
+	        strncpy(temp, &date[i][8], 2);
+	        temp[2] = '-';
+	        strncpy(&temp[3], &date[i][5], 2);
+	        temp[5] = '\0';
+	        strcpy(date[i], temp);
+	    }
+	}
+}
+
+void sendAPIURL(uint16_t chooseCity)
+{
+    switch(chooseCity)
+    {
+    case NHATRANG:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)nhaTrangURL, strlen(nhaTrangURL), HAL_MAX_DELAY);
+    	break;
+    case SAIGON:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)saiGonURL, strlen(saiGonURL), HAL_MAX_DELAY);
+    	break;
+    case HANOI:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)haNoiURL, strlen(haNoiURL), HAL_MAX_DELAY);
+    	break;
+    case TAMPERE:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)tampereURL, strlen(tampereURL), HAL_MAX_DELAY);
+    	break;
+    case ARNHEM:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)arnhemURL, strlen(arnhemURL), HAL_MAX_DELAY);
+    	break;
+    case SYDNEY:
+    	HAL_UART_Transmit(&huart1, (uint8_t*)sydneyURL, strlen(sydneyURL), HAL_MAX_DELAY);
+    	break;
+    }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (rxIndex < BUFFER_SIZE - 1)
+	{
+		if (tempBuffer[0] == '!')
+		{
+			rxComplete = 1;
+			return;
+		}
+		else if (tempBuffer[0] == '?')
+		{
+			lcdPrintf("Error fetching data\n");
+			lcdPrintf("Go back to menu!\n");
+			rxIndex = 0;
+			resetBuffer();
+			HAL_UART_Receive_IT(&huart1, (uint8_t*)tempBuffer, 1);
+			return;
+		}
+		rxBuffer[rxIndex++] = tempBuffer[0];
+	}
+	else
+	{
+	    rxIndex = 0;
+	}
+	HAL_UART_Receive_IT(&huart1, (uint8_t*)tempBuffer, 1);
+}
+
+void processWeatherData(const char *jsonData)
+{
+    cJSON *root = cJSON_Parse(jsonData);
+    if (root == NULL)
+    {
+        lcdPrintf("Error parsing JSON\n");
+        lcdPrintf("Go back to menu!\n");
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON *current = cJSON_GetObjectItem(root, "current");
+    if (current)
+    {
+        cJSON *temperature = cJSON_GetObjectItem(current, "temperature_2m");
+        cJSON *humidity = cJSON_GetObjectItem(current, "relative_humidity_2m");
+        cJSON *dayOrNight = cJSON_GetObjectItem(current, "is_day");
+        if (temperature)
+        {
+        	currentTemperature = temperature->valueint;
+        }
+        if (humidity)
+        {
+        	currentHumidity = humidity->valueint;
+        }
+        if (dayOrNight)
+        {
+        	isDay = dayOrNight->valueint;
+        }
+    }
+
+    cJSON *daily = cJSON_GetObjectItem(root, "daily");
+    if (daily)
+    {
+    	cJSON *weatherCodes = cJSON_GetObjectItem(daily, "weather_code");
+    	cJSON *dateCodes = cJSON_GetObjectItem(daily, "time");
+    	if (dateCodes && cJSON_IsArray(dateCodes))
+    	{
+    		for (int i = 0; i < 7; i++)
+    	    {
+    	        cJSON *dates = cJSON_GetArrayItem(dateCodes, i);
+    	        if (dates)
+    	        {
+    	        	date[dateIndex++] = strdup(dates->valuestring);
+    	        }
+    	    }
+    	}
+        if (weatherCodes && cJSON_IsArray(weatherCodes))
+        {
+            for (int i = 0; i < 7; i++)
+            {
+                cJSON *code = cJSON_GetArrayItem(weatherCodes, i);
+                if (code)
+                {
+                    weather[weatherIndex++] = code->valueint;
+                }
+            }
+        }
+    }
+    processComplete = 1;
+    cJSON_Delete(root);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if (GPIO_Pin == T_IRQ_Pin)
+	{
+		if(XPT2046_TouchPressed())
+		{
+			if(XPT2046_TouchGetCoordinates(&xCoordinates, &yCoordinates))
+			{
+				xCoordinates = 240 - xCoordinates;
+				yCoordinates = 320 - yCoordinates;
+				checkCoordinates();
+			}
+		}
+	}
+}
+
+void resetBuffer()
+{
+	for (int i = 0; i < sizeof(rxBuffer); i++)
+	{
+		rxBuffer[i] = 0;
+	}
 }
 /* USER CODE END 4 */
 

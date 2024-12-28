@@ -205,63 +205,12 @@ void lcdInit(void)
   lcdWriteCommand(ILI9341_MEMORYWRITE);
 }
 
-void drawInterface(void)
+void drawAlignedText(char *text, int yPosition, int sectionWidth, int size, int backColor)
 {
-	lcdSetWindow(0, 0, lcdProperties.width - 1, lcdProperties.height - 1);
-	lcdDrawImage(0, 60, &imageNhaTrang);
-	drawAlignedText("Nha Trang", 60, lcdProperties.width, 0);
-	//Filling top half section with colors
-	for (int y = 0; y < 60; y++)
-	{
-	    for (int x = 0; x < lcdProperties.width; x++)
-	    {
-	        lcdDrawPixel(x, y, COLOR_CYAN);
-	    }
-	}
-	//Filling bottom half section with colors
-	for (int y = 220; y < lcdProperties.height; y++)
-	{
-		for (int x = 0; x < lcdProperties.width; x++)
-		{
-		    lcdDrawPixel(x, y, COLOR_CYAN);
-		}
-	}
-
-	//Coordinates for locating weather icons
-	lcdSetTextFont(&Font12);
-	drawClearDay(120, 16);
-
-	drawClearDay(40, 248);
-	lcdSetCursor(28, 220);
-	lcdPrintfNoBackColor("6/11");
-	drawClearDay(90, 248);
-	lcdSetCursor(78, 220);
-	lcdPrintfNoBackColor("7/11");
-	drawClearDay(150, 248);
-	lcdSetCursor(138, 220);
-	lcdPrintfNoBackColor("8/11");
-	drawClearDay(200, 248);
-	lcdSetCursor(188, 220);
-	lcdPrintfNoBackColor("9/11");
-
-	drawClearDay(65, 301);
-	lcdSetCursor(45, 273);
-	lcdPrintfNoBackColor("10/11");
-	drawClearDay(120, 301);
-	lcdSetCursor(100, 273);
-	lcdPrintfNoBackColor("11/11");
-	drawClearDay(175, 301);
-	lcdSetCursor(155, 273);
-	lcdPrintfNoBackColor("12/11");
-}
-
-//Function for drawing aligned text
-void drawAlignedText(char *text, int yPosition, int sectionWidth, bool BackColor)
-{
-    int textWidth = getTextWidth(text);
+    int textWidth = getTextWidth(text, size);
     int xPosition = (sectionWidth - textWidth) / 2;
     lcdSetCursor(xPosition, yPosition);
-    if (BackColor)
+    if (backColor == 1)
     {
     	lcdPrintf(text);
     }
@@ -275,131 +224,136 @@ void drawClearDay(uint16_t xPosition, uint16_t yPosition)
 {
 	uint8_t sunRadius = 12;
 
-	// Draw the sun (filled yellow circle)
 	lcdFillCircle(xPosition, yPosition, sunRadius, COLOR_YELLOW);
-
-	drawAlignedText("27C", 31, 240, 1);
 }
 
 void drawCloudyDay(uint16_t xPosition, uint16_t yPosition)
 {
-	// Coordinates and sizes for the cloud (3 circles overlapping)
-	uint16_t cloudCenterX1 = 42;
-	uint16_t cloudCenterY1 = 40;
+	uint16_t cloudCenterX1 = xPosition - 11;
+	uint16_t cloudCenterY1 = yPosition + 5;
 
-	uint16_t cloudCenterX2 = 55;
-	uint16_t cloudCenterY2 = 35;
+	uint16_t cloudCenterX2 = xPosition;
+	uint16_t cloudCenterY2 = yPosition;
 
-	uint16_t cloudCenterX3 = 65;
-	uint16_t cloudCenterY3 = 45;
+	uint16_t cloudCenterX3 = xPosition + 8;
+	uint16_t cloudCenterY3 = yPosition + 8;
 
-	uint16_t cloudCenterX4 = 85;
-	uint16_t cloudCenterY4 = 40;
+	uint8_t cloudRadius1 = 8;
+	uint8_t cloudRadius2 = 10;
+	uint8_t cloudRadius3 = 8;
 
-	uint16_t cloudCenterX5 = 98;
-    uint16_t cloudCenterY5 = 35;
-
-    uint16_t cloudCenterX6 = 108;
-    uint16_t cloudCenterY6 = 45;
-
-	uint8_t cloudRadius1 = 10;
-	uint8_t cloudRadius2 = 12;
-	uint8_t cloudRadius3 = 10;
-
-	// Draw the cloud (3 filled white circles)
 	lcdFillCircle(cloudCenterX1, cloudCenterY1, cloudRadius1, COLOR_WHITE);
 	lcdFillCircle(cloudCenterX2, cloudCenterY2, cloudRadius2, COLOR_WHITE);
 	lcdFillCircle(cloudCenterX3, cloudCenterY3, cloudRadius3, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX4, cloudCenterY4, cloudRadius1, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX5, cloudCenterY5, cloudRadius2, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX6, cloudCenterY6, cloudRadius3, COLOR_WHITE);
 }
 
 void drawRainyDay(uint16_t xPosition, uint16_t yPosition)
 {
-	// Coordinates and sizes for the cloud (3 circles overlapping)
-	uint16_t cloudCenterX1 = 25;
-	uint16_t cloudCenterY1 = 40;
-	lcdDrawLine(24, 60, 24, 67, COLOR_WHITE);
-	lcdDrawLine(25, 60, 25, 67, COLOR_WHITE);
-	lcdDrawLine(26, 60, 26, 67, COLOR_WHITE);
+	drawDiagonal(xPosition - 10, yPosition - 4, 11, COLOR_WHITE, -1);
+	drawDiagonal(xPosition + 2, yPosition, 15, COLOR_WHITE, -1);
+	drawDiagonal(xPosition - 17, yPosition + 9, 13, COLOR_WHITE, -1);
+	drawDiagonal(xPosition - 7, yPosition + 3, 10, COLOR_WHITE, -1);
+	drawDiagonal(xPosition - 4, yPosition + 15, 12, COLOR_WHITE, -1);
+	drawDiagonal(xPosition - 9, yPosition + 13, 8, COLOR_WHITE, -1);
+}
 
-	uint16_t cloudCenterX2 = 38;
-	uint16_t cloudCenterY2 = 35;
-	lcdDrawLine(37, 80, 37, 115, COLOR_WHITE);
-	lcdDrawLine(38, 80, 38, 115, COLOR_WHITE);
-	lcdDrawLine(39, 80, 39, 115, COLOR_WHITE);
+void drawSnowyDay(uint16_t xPosition, uint16_t yPosition)
+{
+	lcdSetTextFont(&Font16);
+	lcdSetCursor(xPosition, yPosition);
+	lcdPrintfNoBackColor("*");
+	lcdSetCursor(xPosition - 10, yPosition - 10);
+	lcdPrintfNoBackColor("*");
+	lcdSetCursor(xPosition + 10, yPosition + 10);
+	lcdPrintfNoBackColor("*");
+	lcdSetCursor(xPosition + 10, yPosition - 10);
+	lcdPrintfNoBackColor("*");
+	lcdSetCursor(xPosition - 10, yPosition + 10);
+	lcdPrintfNoBackColor("*");
+	lcdSetTextFont(&Font12);
 
-	uint16_t cloudCenterX3 = 48;
-	uint16_t cloudCenterY3 = 45;
-	lcdDrawLine(47, 65, 47, 72, COLOR_WHITE);
-	lcdDrawLine(48, 65, 48, 72, COLOR_WHITE);
-	lcdDrawLine(49, 65, 49, 72, COLOR_WHITE);
+}
 
-	uint16_t cloudCenterX4 = 68;
-	uint16_t cloudCenterY4 = 40;
+void drawFoggyDay(uint16_t xPosition, uint16_t yPosition)
+{
+	uint16_t cloudCenterX1 = xPosition - 11;
+	uint16_t cloudCenterY1 = yPosition + 5;
 
-	uint16_t cloudCenterX5 = 81;
-	uint16_t cloudCenterY5 = 35;
+	uint16_t cloudCenterX2 = xPosition;
+	uint16_t cloudCenterY2 = yPosition;
 
-	uint16_t cloudCenterX6 = 91;
-	uint16_t cloudCenterY6 = 45;
+	uint16_t cloudCenterX3 = xPosition + 8;
+	uint16_t cloudCenterY3 = yPosition + 8;
 
-	uint16_t cloudCenterX7 = 111;
-	uint16_t cloudCenterY7 = 40;
+	uint8_t cloudRadius1 = 8;
+	uint8_t cloudRadius2 = 10;
+	uint8_t cloudRadius3 = 8;
 
-	uint16_t cloudCenterX8 = 124;
-	uint16_t cloudCenterY8 = 35;
-
-	uint16_t cloudCenterX9 = 134;
-	uint16_t cloudCenterY9 = 45;
-
-	uint8_t cloudRadius1 = 10;
-	uint8_t cloudRadius2 = 12;
-	uint8_t cloudRadius3 = 10;
-
-	// Draw the cloud (3 filled white circles)
 	lcdFillCircle(cloudCenterX1, cloudCenterY1, cloudRadius1, COLOR_WHITE);
 	lcdFillCircle(cloudCenterX2, cloudCenterY2, cloudRadius2, COLOR_WHITE);
 	lcdFillCircle(cloudCenterX3, cloudCenterY3, cloudRadius3, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX4, cloudCenterY4, cloudRadius1, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX5, cloudCenterY5, cloudRadius2, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX6, cloudCenterY6, cloudRadius3, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX7, cloudCenterY7, cloudRadius1, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX8, cloudCenterY8, cloudRadius2, COLOR_WHITE);
-	lcdFillCircle(cloudCenterX9, cloudCenterY9, cloudRadius3, COLOR_WHITE);
+
+	lcdDrawLine(xPosition - 10, yPosition + 2, xPosition + 10, yPosition + 2, COLOR_BLACK);
+	lcdDrawLine(xPosition - 10, yPosition + 3, xPosition + 10, yPosition + 3, COLOR_BLACK);
+	lcdDrawLine(xPosition - 25, yPosition + 6, xPosition - 9, yPosition + 6, COLOR_BLACK);
+	lcdDrawLine(xPosition - 25, yPosition + 7, xPosition - 9, yPosition + 7, COLOR_BLACK);
+	lcdDrawLine(xPosition + 2, yPosition + 8, xPosition + 15, yPosition + 8, COLOR_BLACK);
+	lcdDrawLine(xPosition + 2, yPosition + 9, xPosition + 15, yPosition + 9, COLOR_BLACK);
+	lcdDrawLine(xPosition - 9, yPosition + 10, xPosition + 5, yPosition + 10, COLOR_BLACK);
+	lcdDrawLine(xPosition - 9, yPosition + 11, xPosition + 5, yPosition + 11, COLOR_BLACK);
 }
 
-void drawClock(void)
+void drawStormyDay(uint16_t xPosition, uint16_t yPosition)
 {
-	int hours = 0, minutes = 0, seconds = 0;
-	while (1)
+	uint16_t cloudCenterX1 = xPosition - 11;
+	uint16_t cloudCenterY1 = yPosition + 5;
+
+	uint16_t cloudCenterX2 = xPosition;
+	uint16_t cloudCenterY2 = yPosition;
+
+	uint16_t cloudCenterX3 = xPosition + 8;
+	uint16_t cloudCenterY3 = yPosition + 8;
+
+	uint8_t cloudRadius1 = 8;
+	uint8_t cloudRadius2 = 10;
+	uint8_t cloudRadius3 = 8;
+
+	lcdFillCircle(cloudCenterX1, cloudCenterY1, cloudRadius1, COLOR_BLACK);
+	lcdFillCircle(cloudCenterX2, cloudCenterY2, cloudRadius2, COLOR_BLACK);
+	lcdFillCircle(cloudCenterX3, cloudCenterY3, cloudRadius3, COLOR_BLACK);
+
+	for (uint16_t i = 0; i <= 8; i++)
 	{
-		lcdSetCursor(0, 0);
-		lcdPrintf("%02d:%02d:%02d", hours, minutes, seconds);
-	    seconds++;
-	    if (seconds == 60)
-	    {
-	        seconds = 0;
-	        minutes++;
-	    }
-	    if (minutes == 60)
-	    {
-	        minutes = 0;
-	        hours++;
-	    }
-	    if (hours == 24)
-	    {
-	        hours = 0;
-	    }
-	    HAL_Delay(1000);
+		lcdDrawLine(xPosition - 5 - i, yPosition + 4 + i, xPosition + 5 - i, yPosition + 4 + i, COLOR_YELLOW);
 	}
+	for (uint16_t i = 0; i <= 7; i++)
+	{
+		lcdDrawLine(xPosition - 5 - i, yPosition + 13 + i, xPosition + 3 - 2 * i, yPosition + 13 + i, COLOR_YELLOW);
+	}
+	lcdDrawPixel(xPosition - 13, yPosition + 21, COLOR_YELLOW);
 }
 
-int getTextWidth(const char *text)
+void drawDiagonal(int16_t x, int16_t y, int16_t length, uint16_t color, int8_t direction)
 {
-    int characterWidth = 6;  // Adjust this value based on your Font 12 specifications
-    int length = strlen(text);  // Get the number of characters in the string
+    for (int16_t i = 0; i < length; i++)
+    {
+        lcdDrawPixel(x + i, y + i * direction, color);
+    }
+}
+
+
+int getTextWidth(const char *text, int size)
+{
+    int characterWidth;
+	if (size == 12)
+    {
+    	characterWidth = 6;
+    }
+    else
+    {
+    	characterWidth = 11;
+    }
+    int length = strlen(text);
 
     return length * characterWidth;
 }

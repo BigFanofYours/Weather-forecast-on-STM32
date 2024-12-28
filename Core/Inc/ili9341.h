@@ -76,14 +76,15 @@ typedef struct
 } lcdPropertiesTypeDef;
 
 void					lcdInit(void);
-void              		drawInterface(void);
-void 					drawAlignedText(char *text, int yPosition, int sectionWidth, bool BackColor);
-void 					drawSunnyDay(void);
+void 					drawAlignedText(char *text, int yPosition, int sectionWidth, int size, int backColor);
 void 					drawClearDay(uint16_t xPosition, uint16_t yPosition);
 void 					drawCloudyDay(uint16_t xPosition, uint16_t yPosition);
 void 					drawRainyDay(uint16_t xPosition, uint16_t yPosition);
-void 					drawClock(void);
-int 					getTextWidth(const char *text);
+void 					drawSnowyDay(uint16_t xPosition, uint16_t yPosition);
+void 					drawFoggyDay(uint16_t xPosition, uint16_t yPosition);
+void 					drawStormyDay(uint16_t xPosition, uint16_t yPosition);
+void 					drawDiagonal(int16_t x, int16_t y, int16_t length, uint16_t color, int8_t direction);
+int 					getTextWidth(const char *text, int size);
 void 					lcdDrawImagePortrait(uint16_t x, uint16_t y, GUI_CONST_STORAGE GUI_BITMAP* pBitmap);
 void					lcdFillRGB(uint16_t color);
 void					lcdDrawPixel(uint16_t x, uint16_t y, uint16_t color);

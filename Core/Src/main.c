@@ -82,6 +82,7 @@ uint8_t menu = 1;
 int weather[7];
 int currentTemperature = 0;
 int currentHumidity = 0;
+int currentCity = 0;
 uint16_t weatherIndex = 0;
 uint16_t dateIndex = 0;
 uint8_t processComplete = 0;
@@ -113,6 +114,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 void processWeatherData(const char *jsonData);
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void resetBuffer();
+void demo();
 /* USER CODE END 0 */
 
 /**
@@ -461,31 +463,37 @@ void checkCoordinates()
 	{
 		drawBufferScreen();
 		sendAPIURL(SAIGON);
+		currentCity = 1;
 	}
 	if ((yCoordinates >= 80 && yCoordinates <= 120) && menu == 1)
 	{
 		drawBufferScreen();
 		sendAPIURL(NHATRANG);
+		currentCity = 0;
 	}
 	if ((yCoordinates >= 128 && yCoordinates <= 168) && menu == 1)
 	{
 		drawBufferScreen();
 		sendAPIURL(HANOI);
+		currentCity = 2;
 	}
 	if ((yCoordinates >= 176 && yCoordinates <= 216) && menu == 1)
 	{
 		drawBufferScreen();
 		sendAPIURL(TAMPERE);
+		currentCity = 3;
 	}
 	if ((yCoordinates >= 224 && yCoordinates <= 264) && menu == 1)
 	{
 		drawBufferScreen();
 		sendAPIURL(ARNHEM);
+		currentCity = 4;
 	}
 	if ((yCoordinates >= 272 && yCoordinates <= 312) && menu == 1)
 	{
 		drawBufferScreen();
 		sendAPIURL(SYDNEY);
+		currentCity = 5;
 	}
 }
 
@@ -581,6 +589,60 @@ void drawInterface()
 	lcdSetCursor(110, 90);
 	lcdPrintfNoBackColor("%d", currentTemperature);
 
+	switch (currentCity)
+	{
+	case NHATRANG:
+		drawAlignedText("Nha Trang", 10, 240, NOBACKCOLOR);
+	case SAIGON:
+		drawAlignedText("Sai Gon", 10, 240, NOBACKCOLOR);
+	case HANOI:
+		drawAlignedText("Ha Noi", 10, 240, NOBACKCOLOR);
+	case TAMPERE:
+		drawAlignedText("Tampere", 10, 240, NOBACKCOLOR);
+	case ARNHEM:
+		drawAlignedText("Arnhem", 10, 240, NOBACKCOLOR);
+	case SYDNEY:
+		drawAlignedText("Sydney", 10, 240, NOBACKCOLOR);
+	}
+}
+
+void demo()
+{
+	lcdFillRGB(COLOR_NAVY);
+	lcdSetTextColor(COLOR_WHITE, COLOR_BLACK);
+	drawClearDay(40, 190);
+	lcdSetCursor(25, 160);
+	lcdPrintfNoBackColor("test 1");
+
+	drawCloudyDay(90, 190);
+	lcdSetCursor(75, 160);
+	lcdPrintfNoBackColor("test 2");
+
+	drawRainyDay(150, 190);
+	lcdSetCursor(135, 160);
+	lcdPrintfNoBackColor("test 3");
+
+	drawSnowyDay(200, 190);
+	lcdSetCursor(185, 160);
+	lcdPrintfNoBackColor("test 4");
+
+	drawFoggyDay(65, 270);
+	lcdSetCursor(50, 240);
+	lcdPrintfNoBackColor("test 5");
+
+	drawStormyDay(120, 270);
+	lcdSetCursor(105, 240);
+	lcdPrintfNoBackColor("test 6");
+
+	drawClearDay(175, 270);
+	lcdSetCursor(160, 240);
+	lcdPrintfNoBackColor("test 7");
+
+	lcdSetCursor(80, 110);
+	lcdPrintfNoBackColor("Humidity: test%");
+	lcdSetTextFont(&Font20);
+	lcdSetCursor(110, 90);
+	lcdPrintfNoBackColor("test");
 }
 
 void reformatDate()

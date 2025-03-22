@@ -114,7 +114,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 void processWeatherData(const char *jsonData);
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void resetBuffer();
-void demo();
 /* USER CODE END 0 */
 
 /**
@@ -153,7 +152,6 @@ int main(void)
   LCD_BL_ON();
   lcdInit();
   lcdSetOrientation(PORTRAIT);
-  lcdFillRGB(COLOR_BLACK);
   HAL_UART_Receive_IT(&huart1, (uint8_t*)tempBuffer, 1);
   drawMenu();
   /* USER CODE END 2 */
@@ -592,57 +590,18 @@ void drawInterface()
 	switch (currentCity)
 	{
 	case NHATRANG:
-		drawAlignedText("Nha Trang", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Nha Trang", 10, 240, 16, NOBACKCOLOR);
 	case SAIGON:
-		drawAlignedText("Sai Gon", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Sai Gon", 10, 240, 16, NOBACKCOLOR);
 	case HANOI:
-		drawAlignedText("Ha Noi", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Ha Noi", 10, 240, 16, NOBACKCOLOR);
 	case TAMPERE:
-		drawAlignedText("Tampere", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Tampere", 10, 240, 16, NOBACKCOLOR);
 	case ARNHEM:
-		drawAlignedText("Arnhem", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Arnhem", 10, 240, 16, NOBACKCOLOR);
 	case SYDNEY:
-		drawAlignedText("Sydney", 10, 240, NOBACKCOLOR);
+		drawAlignedText("Sydney", 10, 240, 16, NOBACKCOLOR);
 	}
-}
-
-void demo()
-{
-	lcdFillRGB(COLOR_NAVY);
-	lcdSetTextColor(COLOR_WHITE, COLOR_BLACK);
-	drawClearDay(40, 190);
-	lcdSetCursor(25, 160);
-	lcdPrintfNoBackColor("test 1");
-
-	drawCloudyDay(90, 190);
-	lcdSetCursor(75, 160);
-	lcdPrintfNoBackColor("test 2");
-
-	drawRainyDay(150, 190);
-	lcdSetCursor(135, 160);
-	lcdPrintfNoBackColor("test 3");
-
-	drawSnowyDay(200, 190);
-	lcdSetCursor(185, 160);
-	lcdPrintfNoBackColor("test 4");
-
-	drawFoggyDay(65, 270);
-	lcdSetCursor(50, 240);
-	lcdPrintfNoBackColor("test 5");
-
-	drawStormyDay(120, 270);
-	lcdSetCursor(105, 240);
-	lcdPrintfNoBackColor("test 6");
-
-	drawClearDay(175, 270);
-	lcdSetCursor(160, 240);
-	lcdPrintfNoBackColor("test 7");
-
-	lcdSetCursor(80, 110);
-	lcdPrintfNoBackColor("Humidity: test%");
-	lcdSetTextFont(&Font20);
-	lcdSetCursor(110, 90);
-	lcdPrintfNoBackColor("test");
 }
 
 void reformatDate()
